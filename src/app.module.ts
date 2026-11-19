@@ -8,8 +8,24 @@ import { AppService } from './app.service.js';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    BullModule.forRoot({ connection: { host: 'localhost', port: 6379 } }),
+    //-----------
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const redisUrl = new URL(
+          config.get<string>('REDIS_URL') ?? 'redis://localhost:6379',
+        );
+
+        return {
+          connection: {
+            host: redisUrl.hostname,
+            port: Number(redisUrl.port || 6379),
+          },
+        };
+      },
+    }),
     BullModule.registerQueue({ name: 'emails' }),
+    //-----------
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
