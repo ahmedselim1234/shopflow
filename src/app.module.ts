@@ -1,30 +1,33 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-
+import { TypeOrmModule } from '@nestjs/typeorm';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+
     TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (cfg: ConfigService) => ({
+      useFactory: (config: ConfigService) => ({
         type: 'mssql',
-        host: cfg.getOrThrow('DB_HOST'),
-        port: Number(cfg.getOrThrow('DB_PORT')),
-        username: cfg.getOrThrow('DB_USER'),
-        password: cfg.getOrThrow('DB_PASSWORD'),
-        database: cfg.getOrThrow('DB_NAME'),
+        host: config.get<string>('DB_HOST'),
+        port: Number(config.get<string>('DB_PORT')),
+        username: config.get<string>('DB_USER'),
+        password: config.get<string>('DB_PASSWORD'),
+        database: config.get<string>('DB_NAME'),
+
         autoLoadEntities: true,
-        synchronize: true, // ﻟﻠﺘﻄﻮﻳﺮ ﺑﺲ! ﻓﻲ Production ﺑﻨﺴﺘﺨﺪم Migrations
-        options: { encrypt: false, trustServerCertificate: true },
-        pool: { max: 20, idleTimeoutMillis: 30000 },
+        synchronize: true,
+
+        options: {
+          encrypt: false,
+          trustServerCertificate: true,
+        },
       }),
     }),
   ],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}
