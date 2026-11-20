@@ -15,6 +15,10 @@ WHERE table_schema = 'public';
 عشان اشوف الusers 
 SELECT * FROM users;
 
+SELECT * FROM products;
+
+SELECT * FROM orders;
+
 
 
 http://localhost:3000/admin/queues/queue/emails

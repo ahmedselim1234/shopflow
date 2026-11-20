@@ -21,10 +21,14 @@ export class OrdersService {
     // create (order)
     const order = await this.saveOrder(userId, dto);
     //send (job) to Queue and this name of job order-confirmation
-    await this.emails.add('order-confirmation', {
-      orderId: order.id,
-      to: dto.customerEmail,
-    },EMAIL_JOB_OPTIONS);
+    await this.emails.add(
+      'order-confirmation',
+      {
+        orderId: order.id,
+        to: dto.customerEmail,
+      },
+      { ...EMAIL_JOB_OPTIONS, jobId: `order-confirmation-${order.id}` },
+    );
 
     return order;
   }
