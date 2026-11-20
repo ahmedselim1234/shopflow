@@ -1,0 +1,16 @@
+ عشان ادخل علي الداتا بيز 
+ docker exec -it shopflow-postgres-1 psql -U shop -d shopflow
+
+عشان اشوف الداتا بيز الي عندي
+SELECT current_database();
+
+\dn
+
+عشان اعرف الجداول الي عندي 
+SELECT table_name
+FROM information_schema.tables
+WHERE table_schema = 'public';
+
+
+عشان اشوف الusers 
+SELECT * FROM users;
