@@ -1,13 +1,51 @@
+# ---------------------------------------------------------------------------
+# Infrastructure only: Postgres + Redis.
+#
+# The NestJS app is deliberately NOT a service in this file, so the local
+# `npm run dev` process and these containers are completely independent:
+# stopping / restarting the local server can never stop the containers.
+#
+#   npm run infra:up      -> docker compose up -d --wait
+#   npm run infra:down    -> docker compose down        (keeps the volume)
+#   npm run infra:logs    -> docker compose logs -f
+# ---------------------------------------------------------------------------
+name: shopflow
+
 services:
   postgres:
     image: postgres:16
     restart: unless-stopped
-    environment: { POSTGRES_USER: shop, POSTGRES_PASSWORD: shop, POSTGRES_DB: shopflow }
-    ports: ["5432:5432"]
-    volumes: [pgdata:/var/lib/postgresql/data]
+    environment:
+      POSTGRES_USER: ${DB_USER:-shop}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-shop}
+      POSTGRES_DB: ${DB_NAME:-shopflow}
+    # 127.0.0.1 only: reachable from the host (npm run dev) but not exposed
+    # to the LAN. Avoids the Windows firewall prompt and the IPv6 (`::1`)
+    # half-open connection that makes localhost look "sometimes broken".
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # Lets `docker compose up -d --wait` block until PG really accepts
+      # connections, so the app never starts against a half-ready server.
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-shop} -d ${DB_NAME:-shopflow}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
   redis:
     image: redis:7
     restart: unless-stopped
-    ports: ["6379:6379"]
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
 volumes:
   pgdata:

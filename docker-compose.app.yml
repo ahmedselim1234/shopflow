@@ -1,0 +1,38 @@
+# ---------------------------------------------------------------------------
+# Overlay that adds the NestJS app running INSIDE Docker.
+# It reuses the services from docker-compose.yml, so the app talks to them
+# over the compose network using the service names `postgres` and `redis`.
+#
+#   npm run docker:dev        -> up --build (app + infra)
+#   npm run docker:dev:down   -> removes the app container ONLY; Postgres and
+#                                Redis keep running untouched
+#
+# The hostnames below are the whole point: inside a container `localhost`
+# is the container itself, never the database.
+# ---------------------------------------------------------------------------
+services:
+  app:
+    build:
+      context: .
+      target: dev
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      # Service names, not localhost.
+      DATABASE_URL: postgres://${DB_USER:-shop}:${DB_PASSWORD:-shop}@postgres:5432/${DB_NAME:-shopflow}
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      # Source mount for `nest start --watch`. The anonymous volume keeps the
+      # image's linux node_modules instead of the host's (Windows) build.
+      # `dist` is deliberately NOT a volume: `nest` deletes and recreates it
+      # on every rebuild, which fails with EBUSY on a mountpoint.
+      - .:/app
+      - /app/node_modules

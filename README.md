@@ -44,6 +44,49 @@ $ npm run start:dev
 $ npm run start:prod
 ```
 
+## Local vs Docker (Postgres + Redis)
+
+Postgres and Redis are **infrastructure only** — they are never started or
+stopped by the NestJS process. Hostnames differ per environment, and that is
+the single most important detail:
+
+| App runs        | Postgres                        | Redis                  |
+| --------------- | ------------------------------- | ---------------------- |
+| Locally (`npm run dev`) | `localhost:5432`        | `localhost:6379`       |
+| Inside Docker   | `postgres:5432` (service name)  | `redis:6379`           |
+
+```bash
+# 1. Start infrastructure (detached, waits until healthy)
+npm run infra:up        # docker compose up -d --wait
+
+# 2. Run the app on your machine
+npm run dev             # reads .env  -> localhost
+
+# or run the app inside Docker (uses docker-compose.app.yml -> postgres / redis)
+npm run docker:dev
+
+# stop only the Dockerized app; Postgres/Redis keep running
+npm run docker:dev:down
+
+# stop infrastructure (data volume is kept; add -v only to wipe the DB)
+npm run infra:down
+```
+
+Important details:
+
+- `.env` is **excluded from the image** (`.dockerignore`). Inside Docker the
+  values come from `docker-compose.app.yml`, which passes `DATABASE_URL` and
+  `REDIS_URL` as real environment variables. Real env vars always win over the
+  `.env` file, so the two modes never fight over the same value.
+- `localhost` inside a container is the container itself — it can never reach
+  the database. That is why the compose overlay uses the service names.
+- The DB/Redis ports are published on `127.0.0.1` only (host access, no LAN
+  exposure, no Windows firewall prompt).
+- Both infra containers have healthchecks, so `npm run infra:up` only returns
+  once Postgres is actually accepting connections instead of merely "started".
+- Running `npm run docker:dev` while `npm run dev` is already using port 3000
+  will fail; use `APP_PORT=3001 npm run docker:dev` or stop the local server.
+
 ## Run tests
 
 ```bash
