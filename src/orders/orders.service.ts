@@ -6,6 +6,7 @@ import { In, Repository } from 'typeorm';
 import { Order } from './order.entity.js';
 import { Product } from '../products/product.entity.js';
 import { CreateOrderDto } from './dtos/createOrder.dto.js';
+import { EMAIL_JOB_OPTIONS } from '../mail/email-job-options.js';
 
 @Injectable()
 export class OrdersService {
@@ -23,7 +24,7 @@ export class OrdersService {
     await this.emails.add('order-confirmation', {
       orderId: order.id,
       to: dto.customerEmail,
-    });
+    },EMAIL_JOB_OPTIONS);
 
     return order;
   }

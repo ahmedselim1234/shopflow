@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { RedisModule } from './redis/redis.module.js';
 import { User } from './users/user.entity.js';
 import { Product } from './products/product.entity.js';
@@ -25,7 +25,10 @@ import { OrdersModule } from './orders/orders.module.js';
       route: '/admin/queues',
       adapter: ExpressAdapter,
     }),
-    BullBoardModule.forFeature({ name: 'emails', adapter: BullMQAdapter }),
+    BullBoardModule.forFeature(
+      { name: 'emails', adapter: BullMQAdapter },
+      { name: 'dlq-emails', adapter: BullMQAdapter },
+    ),
     OrdersModule,
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRootAsync({

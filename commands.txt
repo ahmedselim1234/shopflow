@@ -14,3 +14,7 @@ WHERE table_schema = 'public';
 
 عشان اشوف الusers 
 SELECT * FROM users;
+
+
+
+http://localhost:3000/admin/queues/queue/emails

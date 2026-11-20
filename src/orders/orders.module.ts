@@ -12,7 +12,7 @@ import { OrdersService } from './orders.service.js';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Order, OrderItem, Product]),
-    BullModule.registerQueue({ name: 'emails' }),
+    BullModule.registerQueue({ name: 'emails' }, { name: 'dlq-emails' }),
   ],
   controllers: [OrdersController],
   providers: [OrdersService, EmailsProcessor, MailService],

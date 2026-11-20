@@ -8,4 +8,4 @@ export class DevAuthGuard implements CanActivate {
     req.user = { id, role: 'customer', permissions: [] };
     return true;
   }
-}
+} 
