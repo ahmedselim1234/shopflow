@@ -1,7 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { sleep } from "../common/sleep.js";
 
-
+//resposible for send emails 
 @Injectable()
 export class MailService {
 
