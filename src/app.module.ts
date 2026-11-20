@@ -1,46 +1,25 @@
-import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
-
+import { RedisModule } from './redis/redis.module.js';
+import { User } from './users/user.entity.js';
+import { Product } from './products/product.entity.js';
+import { Order, OrderItem } from './orders/order.entity.js';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    //-----------
-    BullModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
-        const redisUrl = new URL(
-          config.get<string>('REDIS_URL') ?? 'redis://localhost:6379',
-        );
-
-        return {
-          connection: {
-            host: redisUrl.hostname,
-            port: Number(redisUrl.port || 6379),
-          },
-        };
-      },
-    }),
-    BullModule.registerQueue({ name: 'emails' }),
-    //-----------
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
+      useFactory: (cfg: ConfigService) => ({
         type: 'postgres',
-        host: config.get<string>('DB_HOST'),
-        port: Number(config.get<string>('DB_PORT')),
-        username: config.get<string>('DB_USER'),
-        password: config.get<string>('DB_PASSWORD'),
-        database: config.get<string>('DB_NAME'),
-        autoLoadEntities: true,
-        synchronize: true,
+        url: cfg.getOrThrow('DATABASE_URL'),
+        autoLoadEntities: true,   // أي Entity مسجلة بـ forFeature تتحمل لوحدها
+        synchronize: true,        // للتطوير بس! هنقفله يوم 7 ونستخدم Migrations
+        extra: { max: 20, idleTimeoutMillis: 30000 },
       }),
     }),
+    TypeOrmModule.forFeature([User, Product, Order, OrderItem]),
+    RedisModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}
