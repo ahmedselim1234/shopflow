@@ -17,20 +17,18 @@ export class RedisConnection implements OnApplicationShutdown {
     this.client = new Redis(
       cfg.get<string>('REDIS_URL') ?? 'redis://localhost:6379',
       {
-        // BullMQ محتاج القيمة دي
+    
         maxRetriesPerRequest: null,
       },
     );
 
-    // من غير الـ listener ده ioredis بيطبع "Unhandled error event"
-    // ويعمل spam للوجز كل ما الاتصال يفشل.
+
     this.client.on('error', (err) => {
       this.logger.warn(`Redis: ${err.message}`);
     });
   }
 
-  // من غير ده الـ process بيفضل شغال بعد app.close()
-  // (زي seed.ts اللي كان بيعمل hang).
+
   async onApplicationShutdown() {
     if (this.client.status !== 'end') {
       await this.client.quit();
@@ -51,3 +49,4 @@ export class RedisConnection implements OnApplicationShutdown {
   exports: ['REDIS'],
 })
 export class RedisModule {}
+ 

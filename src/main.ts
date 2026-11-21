@@ -12,7 +12,8 @@ async function bootstrap() {
   // setInterval(() => {
   //   console.log('rss MB', Math.round(process.memoryUsage().rss / 1e6));
   // }, 1000);
-  
+  app.enableShutdownHooks()
   await app.listen(process.env.PORT ?? 3000);
 }
 await bootstrap();
+ 
