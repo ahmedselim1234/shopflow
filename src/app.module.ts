@@ -27,7 +27,7 @@ import { LocksModule } from './locks/locks.module.js';
 import { ReportsModule } from './reports/reports.module.js';
 import { RateLimitModule } from './rate-limit/rate-limit.module.js';
 import { ReportDaily } from './reports/report-daily.entity.js';
-
+import { ImportsModule } from './imports/imports.module.js';
 
 @Module({
   imports: [
@@ -52,7 +52,11 @@ import { ReportDaily } from './reports/report-daily.entity.js';
     BullBoardModule.forFeature(
       { name: 'emails', adapter: BullMQAdapter },
       { name: 'dlq-emails', adapter: BullMQAdapter },
-      // { name: 'reports', adapter: BullMQAdapter },
+      { name: 'reports', adapter: BullMQAdapter },
+      {
+        name: 'imports',
+        adapter: BullMQAdapter,
+      },
     ),
     // 5. Application Modules
     OrdersModule,
@@ -70,9 +74,18 @@ import { ReportDaily } from './reports/report-daily.entity.js';
       useFactory: buildTypeOrmOptions,
     }),
     // Database Entities
-    TypeOrmModule.forFeature([User, Product, Order, OrderItem, IdempotencyKey,ReportDaily]),
+    TypeOrmModule.forFeature([
+      User,
+      Product,
+      Order,
+      OrderItem,
+      IdempotencyKey,
+      ReportDaily,
+    ]),
     // 10. Redis Connection
     RedisModule,
-  ], 
+    // csv
+    ImportsModule,
+  ],
 })
 export class AppModule {}
