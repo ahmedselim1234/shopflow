@@ -72,6 +72,6 @@ import { ReportDaily } from './reports/report-daily.entity.js';
     TypeOrmModule.forFeature([User, Product, Order, OrderItem, IdempotencyKey,ReportDaily]),
     // 10. Redis Connection
     RedisModule,
-  ],
+  ], 
 })
 export class AppModule {}
