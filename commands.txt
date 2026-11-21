@@ -19,6 +19,8 @@ SELECT * FROM products;
 
 SELECT * FROM orders;
 
+SELECT * FROM reports_daily;
+
 
 
 http://localhost:3000/admin/queues/queue/emails

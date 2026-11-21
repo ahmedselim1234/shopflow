@@ -12,9 +12,15 @@ import { BullBoardModule } from '@bull-board/nestjs';
 import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { ExpressAdapter } from '@bull-board/express';
 import { OrdersModule } from './orders/orders.module.js';
+import { ScheduleModule } from '@nestjs/schedule';
+import { LocksModule } from './locks/locks.module.js';
+import { ReportsModule } from './reports/reports.module.js';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
+    LocksModule,
+    ReportsModule,
     BullModule.forRoot({
       connection: {
         host: process.env.REDIS_HOST ?? 'localhost',
@@ -28,6 +34,7 @@ import { OrdersModule } from './orders/orders.module.js';
     BullBoardModule.forFeature(
       { name: 'emails', adapter: BullMQAdapter },
       { name: 'dlq-emails', adapter: BullMQAdapter },
+      // { name: 'reports', adapter: BullMQAdapter },
     ),
     OrdersModule,
     ConfigModule.forRoot({ isGlobal: true }),
