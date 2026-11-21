@@ -21,7 +21,7 @@ export class ReportsScheduler {
     @InjectQueue('reports') private reports: Queue,
   ) {}
 
-  @Cron('* * * * *', { timeZone: 'Africa/Cairo' })
+  @Cron('* * * * *', { timeZone: 'Africa/Cairo' }) 
   //   @Cron('0 2 * * *', { timeZone: 'Africa/Cairo' })
   async dailySalesReport() {
     const token = await this.locks.acquire(

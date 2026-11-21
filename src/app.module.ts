@@ -15,6 +15,8 @@ import { OrdersModule } from './orders/orders.module.js';
 import { ScheduleModule } from '@nestjs/schedule';
 import { LocksModule } from './locks/locks.module.js';
 import { ReportsModule } from './reports/reports.module.js';
+import { ProductsModule } from './products/products.module.js';
+import { CacheModule } from './cache/cache.module.js';
 
 @Module({
   imports: [
@@ -37,6 +39,8 @@ import { ReportsModule } from './reports/reports.module.js';
       // { name: 'reports', adapter: BullMQAdapter },
     ),
     OrdersModule,
+    ProductsModule,
+    CacheModule,
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
