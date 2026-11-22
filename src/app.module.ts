@@ -28,7 +28,11 @@ import { ReportsModule } from './reports/reports.module.js';
 import { RateLimitModule } from './rate-limit/rate-limit.module.js';
 import { ReportDaily } from './reports/report-daily.entity.js';
 import { ImportsModule } from './imports/imports.module.js';
-
+// Health & Graceful Shutdown
+import { HealthModule } from './health/health.module.js';
+import { MonitoringModule } from './monitoring/monitoring.module.js';
+import { WebsocketGateway } from './websocket/websocket.gateway.js';
+ 
 @Module({
   imports: [
     // 1. Scheduling & Distributed Locks
@@ -62,6 +66,8 @@ import { ImportsModule } from './imports/imports.module.js';
     OrdersModule,
     ProductsModule,
     AuthModule,
+    // 5b. Health & Graceful Shutdown (/health/live, /health/ready)
+    HealthModule,
     // 6. Cache
     CacheModule,
     // 7. Rate Limiting
@@ -86,6 +92,8 @@ import { ImportsModule } from './imports/imports.module.js';
     RedisModule,
     // csv
     ImportsModule,
+   
   ],
+ 
 })
 export class AppModule {}
