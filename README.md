@@ -1,175 +1,120 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# ShopFlow
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A small e-commerce backend built with **NestJS, PostgreSQL, Redis and BullMQ**.
+Each folder demonstrates one production pattern in the smallest useful amount of code.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Stack
 
-## Description
+- **NestJS 12** (ESM, TypeScript) — modules, DI, guards, pipes
+- **PostgreSQL + TypeORM** — users, products, orders, reports, idempotency keys
+- **Redis + ioredis** — cache, distributed locks, rate limiting, queues
+- **BullMQ + Bull Board** — background jobs and a queue dashboard
+- **Docker Compose** — Postgres and Redis only; the app can run on the host or in Docker
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
+## Quick start
 
 ```bash
-$ npm install
+npm install
+cp .env.example .env     # Windows: copy .env.example .env
+npm run infra:up         # Postgres + Redis, waits until healthy
+npm run dev              # http://localhost:3000
 ```
 
-## Compile and run the project
+Run the app in Docker instead: `npm run docker:dev` (stop it with `docker:dev:down`).
 
-```bash
-# development
-$ npm run start
+## How it fits together
 
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+```text
+request → global RateLimitGuard → route guard (DevAuthGuard)
+        → ValidationPipe + DTO → controller → service
+        → PostgreSQL / Redis / BullMQ
 ```
 
-## Local vs Docker (Postgres + Redis)
+One folder per concern: `products/`, `orders/`, `cache/`, `locks/`, `rate-limit/`, `mail/`, `reports/`, `imports/`, `health/`, `monitoring/`.
 
-Postgres and Redis are **infrastructure only** — they are never started or
-stopped by the NestJS process. Hostnames differ per environment, and that is
-the single most important detail:
+## Core concepts
 
-| App runs        | Postgres                        | Redis                  |
-| --------------- | ------------------------------- | ---------------------- |
-| Locally (`npm run dev`) | `localhost:5432`        | `localhost:6379`       |
-| Inside Docker   | `postgres:5432` (service name)  | `redis:6379`           |
+### 1. Modules, DI and DTO validation
 
-```bash
-# 1. Start infrastructure (detached, waits until healthy)
-npm run infra:up        # docker compose up -d --wait
+- **What:** Nest splits code into modules; services are injected through constructors; DTOs validate request bodies.
+- **Why:** Separation of concerns and safe input at the edge.
+- **How:** `AppModule` wires feature modules. `ValidationPipe({ whitelist, transform })` in `src/main.ts` validates DTOs such as `src/orders/dtos/createOrder.dto.ts`; `PartialType` builds update DTOs.
 
-# 2. Run the app on your machine
-npm run dev             # reads .env  -> localhost
+### 2. Cache-aside with stampede protection
 
-# or run the app inside Docker (uses docker-compose.app.yml -> postgres / redis)
-npm run docker:dev
+- **What:** Reads check Redis first; on a miss the value is loaded from the DB and cached.
+- **Why:** Cuts database load for hot reads and prevents many requests from hitting the DB when a key expires.
+- **How:** `src/cache/cache.service.ts` provides `getOrSet(key, ttl, loader)`. It uses a short Redis lock, a double-check, TTL jitter and 30s negative caching. `ProductsService.findOne` caches products for 5 minutes and deletes the key on update.
 
-# stop only the Dockerized app; Postgres/Redis keep running
-npm run docker:dev:down
+### 3. Distributed locks
 
-# stop infrastructure (data volume is kept; add -v only to wipe the DB)
-npm run infra:down
-```
+- **What:** A lock stored in Redis, shared by all app instances.
+- **Why:** In-memory locks only protect one process; multiple servers must not run the same job or rebuild the same cache entry.
+- **How:** `src/locks/locks.service.ts` acquires with `SET key token PX ttl NX` and releases with a Lua script that deletes the key only if the token matches.
 
-Important details:
+### 4. Rate limiting
 
-- `.env` is **excluded from the image** (`.dockerignore`). Inside Docker the
-  values come from `docker-compose.app.yml`, which passes `DATABASE_URL` and
-  `REDIS_URL` as real environment variables. Real env vars always win over the
-  `.env` file, so the two modes never fight over the same value.
-- `localhost` inside a container is the container itself — it can never reach
-  the database. That is why the compose overlay uses the service names.
-- The DB/Redis ports are published on `127.0.0.1` only (host access, no LAN
-  exposure, no Windows firewall prompt).
-- Both infra containers have healthchecks, so `npm run infra:up` only returns
-  once Postgres is actually accepting connections instead of merely "started".
-- Running `npm run docker:dev` while `npm run dev` is already using port 3000
-  will fail; use `APP_PORT=3001 npm run docker:dev` or stop the local server.
+- **What:** Limits requests per client in a time window using a Redis sorted-set sliding window.
+- **Why:** Stops brute-force logins, scrapers and retry storms.
+- **How:** `src/rate-limit/rate-limit.guard.ts` is a global `APP_GUARD` (default 100 req/min per IP). `@RateLimit(5, 15 * 60, 'ip+body.email')` protects `POST /auth/login`. Returns `429` + `Retry-After`; fails open if Redis is down.
 
-## Run tests
+### 5. Background jobs, retries and DLQ
 
-```bash
-# unit tests
-$ npm run test
+- **What:** BullMQ queues run slow work outside the HTTP request; failed jobs are retried, then moved to a dead letter queue.
+- **Why:** A slow email must not block `POST /orders`, and temporary failures should recover automatically.
+- **How:** `OrdersService` adds an `emails` job; `src/mail/emails.processor.ts` processes it with concurrency 5. `src/mail/email-job-options.ts` sets 5 attempts and exponential backoff. Exhausted or `UnrecoverableError` jobs go to `dlq-emails`; `src/mail/dlq.controller.ts` lists and re-queues them.
 
-# e2e tests
-$ npm run test:e2e
+### 6. Scheduled reports (cron + lock)
 
-# test coverage
-$ npm run test:cov
-```
+- **What:** A cron job enqueues a daily sales report.
+- **Why:** Scheduled work must run once even with several instances.
+- **How:** `src/reports/reports.scheduler.ts` runs `@Cron` (every minute in the demo), takes a distributed lock, then adds a job with `jobId: daily-sales-<date>`. `reports.processor.ts` computes totals with SQL and upserts one row per day.
 
-## Deployment
+### 7. Idempotency keys
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+- **What:** Repeating a request with the same `Idempotency-Key` returns the original result instead of creating a duplicate.
+- **Why:** Clients retry on timeouts; retries must not create duplicate orders.
+- **How:** `src/idempotency/idempotency.service.ts` uses a composite primary key `(key, userId)` and a SHA-256 hash of the body. Same key + different body → `422`; still processing → `409`; completed → stored response. Failed handlers delete the row so the client can retry.
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### 8. Streaming CSV import and export
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
+- **What:** Files and query results are processed as streams instead of loading everything into memory.
+- **Why:** Large CSVs would exhaust memory; backpressure keeps reads in step with database writes.
+- **How:** Import (`src/imports/imports.controller.ts` + `imports.processor.ts`): upload to disk (500 MB limit), enqueue, then stream with `csv-parse`, insert batches of 1000, skip bad rows, delete the temp file. Export (`export.controller.ts`): TypeORM `.stream()` piped through `csv-stringify` into the response.
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### 9. Health checks and graceful shutdown
 
-## Observability
+- **What:** Liveness/readiness endpoints plus a drain period before the process exits.
+- **Why:** Orchestrators need to know when to route traffic and when a pod is shutting down; draining avoids dropped requests.
+- **How:** `/health/live` always returns OK; `/health/ready` returns `503` while `ShutdownService` drains (`DRAIN_MS`, default 5s). `app.enableShutdownHooks()` in `src/main.ts` activates it.
 
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
+### 10. Runtime monitoring
 
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
+- **What:** A `/monitoring/performance` endpoint reporting CPU, memory, event-loop delay and WebSocket counters.
+- **Why:** A blocked event loop makes every request slow; these metrics expose it quickly.
+- **How:** `src/monitoring/performance.service.ts` uses `monitorEventLoopDelay`, `process.cpuUsage()` and `process.memoryUsage()`.
 
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
+## API
 
-To add it to this project, run this and approve the code it prints at [observe.nestjs.com/link](https://observe.nestjs.com/link) - signing up for free if you have no account:
+| Method | Path | Notes |
+| --- | --- | --- |
+| `GET` | `/products/:id` | cached for 5 min |
+| `POST` | `/products` | `x-user-id`; validated DTO |
+| `PATCH` | `/products/:id` | `x-user-id`; invalidates cache |
+| `POST` | `/orders` | `x-user-id` + `Idempotency-Key`; queues email |
+| `POST` | `/auth/login` | rate limited: 5 / 15 min per IP + email |
+| `POST` | `/admin/products/import` | multipart CSV upload |
+| `GET` | `/admin/orders/export` | streamed CSV |
+| `GET` / `POST` | `/admin/dlq`, `/admin/dlq/:id/retry` | inspect and retry dead jobs |
+| `GET` | `/admin/queues` | Bull Board dashboard |
+| `GET` | `/health/live`, `/health/ready`, `/monitoring/performance` | ops endpoints |
 
-```bash
-$ npx @nestjs/observe link
-```
+## Notes
 
-It installs `@nestjs/observe`, wires it into `AppModule` and `main.ts`, and writes the app key and secret into `.env`, which every `nest start` script (`start`, `start:dev`, `start:debug`) then loads. In production, set `OBSERVE_APP_KEY` and `OBSERVE_APP_SECRET` in the environment instead.
+- `synchronize: true` is for development only; use migrations in production.
+- Auth is a dev guard (`x-user-id`); email sending is simulated.
+- The WebSocket gateway (`src/websocket/`) is scaffolded but not registered; the audit entity/helper (`src/audit/`) is not wired in.
+- BullMQ reads `REDIS_HOST`/`REDIS_PORT` while Docker Compose sets only `REDIS_URL`; align them when running in Docker.
+- No test specs exist yet, but Vitest and oxlint are configured (`npm run test`, `npm run lint`).
 
-Or do it by hand:
-
-```bash
-$ npm install @nestjs/observe
-```
-
-Then follow the [setup guide](https://docs.nestjs.com/observability/sdk) - it takes a single import and an app key.
-
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+See the [NestJS documentation](https://docs.nestjs.com) for framework details.
